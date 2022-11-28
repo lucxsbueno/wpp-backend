@@ -1,15 +1,8 @@
+
 const express = require("express");
 const app = express();
-
 const http = require("http");
 const server = http.createServer(app);
-
-const io = require("socket.io")(server, {
-  cors: {
-    origin: "*",
-    methods: ["GET", "POST", "PUT", "PATCH", "DELETE"]
-  }
-});
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -20,112 +13,37 @@ app.get("/", (req, res) => {
   });
 });
 
-app.post("/messages", async (req, res) => {
-  const { message, number } = req.body;
-
-  try {
-    const response = await client.sendMessage(number, message);
-
-    res.status(200).json({
-      error: false,
-      message: "Mensagem enviada!",
-      response
-    });
-  } catch (error) {
-    res.status(500).json({
-      error: true,
-      message: err.message
-    });
+const io = require("socket.io")(server, {
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE"]
   }
 });
 
-/**
- * 
- * 
- * 
- * 
- * 
- * WhatsApp Web
- */
-const { Client, LocalAuth } = require("whatsapp-web.js");
-
-const qrcode = require("qrcode");
-
-const client = new Client({
-  authStrategy: new LocalAuth(),
-  puppeteer: {
-    headless: true
-  }
-});
-
-client.initialize();
-
-/**
- * 
- * 
- * Socke.io
- */
 io.on("connection", (socket) => {
-  console.log("Um usuário se conectou:", socket.id);
+  console.log("Socket conectado:", socket.id);
 
-  socket.emit("message", "Sincronizando...");
+  socket.emit("message", { message: "Novo socket conectado: " + socket.id });
 
-  client.on("qr", qr => {
-    qrcode.toDataURL(qr, (err, url) => {
-      if (!err) {
-        socket.emit("qr", url);
-        socket.emit("message", "Para prosseguir, por favor escaneie o QrCode!");
-      }
+  socket.on("create-session", data => {
+    console.log("Criando sessão: " + data.id);
+    socket.join(data.id);
+    socket.to(data.id).emit("message", {
+      message: "Você criou uma sessão!",
+      session: data
     });
   });
 
-  client.on("ready", async () => {
-    socket.emit("message", "WhatsApp está pronto!");
-
-    socket.emit("message", "Carregando chats...");
-
-    /**
-     * 
-     * Retorna todos os chats apenas com os atributos necessários
-     */
-    let chats = await client.getChats();
-
-    chats = await Promise.all(chats.map(async chat => {
-      const { body, fromMe, hasMedia, id, ...rest }
-        = { ...(await chat.fetchMessages({ limit: 1 }))[0] };
-
-      return {
-        id: chat.id._serialized,
-        name: chat.name,
-        avatar: await (await client.getContactById(chat.id._serialized)).getProfilePicUrl(),
-        last_message: {
-          id: { ...id }.id,
-          body: hasMedia ? "Enviou uma mídia." : body,
-          from_me: fromMe,
-          has_media: hasMedia
-        },
-        is_group: chat.isGroup
-      }
-    }));
-
-    socket.emit("chats", chats);
-
-    socket.emit("message", "Chats carregados com sucesso!");
+  socket.on("join-session", id => {
+    socket.join(id);
   });
 
-  client.on("authenticated", () => {
-    socket.emit("message", "O WhatsApp está logado!");
+  socket.on("unsubscribe-session", id => {
+    socket.leave(id);
   });
 
-  client.on("message", async message => {
-    socket.emit("new_message", message._data.notifyName + ": " + message.body);
-
-    if (message.body === "!amor") {
-      message.reply("Bárbara amor🧡🧡");
-      const chat = await message.getChat();
-
-      console.log(chat);
-    }
+  socket.on("send_message", data => {
+    socket.to(data.id).emit("message", { message: data.message });
   });
 });
 
