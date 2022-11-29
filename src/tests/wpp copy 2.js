@@ -3,7 +3,6 @@ const express = require("express");
 const app = express();
 const http = require("http");
 const server = http.createServer(app);
-const qrcode = require("qrcode");
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -26,7 +25,7 @@ const { Client, LocalAuth } = require("whatsapp-web.js");
 io.on("connection", (socket) => {
   console.log("Socket conectado:", socket.id);
 
-  socket.emit("message", "Novo socket conectado: " + socket.id);
+  socket.emit("message", { message: "Novo socket conectado: " + socket.id });
 
   /**
    * 
@@ -36,8 +35,6 @@ io.on("connection", (socket) => {
    */
   socket.on("generate-session", data => {
     console.log("Localizando sessão: " + data.id);
-
-    socket.emit("message", "Localizando sessão: " + data.id);
 
     const client = new Client({
       authStrategy: new LocalAuth({
@@ -73,66 +70,15 @@ io.on("connection", (socket) => {
     });
 
     client.on("ready", async () => {
-      console.log("WhatsApp está pronto!");
-
-      socket.emit("message", "O WhatsApp está pronto! " + data.id);
-
-      socket.emit("message", "Carregando chats...");
-
-      /**
-       * 
-       * Retorna todos os chats apenas com os atributos necessários
-       */
-      let chats = await client.getChats();
-
-      chats = await Promise.all(chats.map(async chat => {
-        const { body, fromMe, hasMedia, id, timestamp, ...rest }
-          = { ...(await chat.fetchMessages({ limit: 1 }))[0] };
-
-        return {
-          id: chat.id._serialized,
-          name: chat.name,
-          avatar: await (await client.getContactById(chat.id._serialized)).getProfilePicUrl(),
-          is_group: chat.isGroup,
-          last_message: {
-            id: { ...id }.id,
-            body: hasMedia ? "Enviou uma mídia." : body,
-            timestamp,
-            from_me: fromMe,
-            has_media: hasMedia
-          }
-        }
-      }));
-
-      socket.emit("chats", chats);
-
-      socket.emit("message", "Chats carregados com sucesso!");
+      socket.emit("message", "WhatsApp está pronto!");
     });
-
+  
     client.on("authenticated", () => {
-      socket.emit("qr", "");
       socket.emit("message", "O WhatsApp está logado!");
     });
-
-    client.on("loading_screen", () => {
-      socket.emit("message", "Carregando...");
-    });
-
-    client.on("auth_failure", () => {
-      socket.emit("message", "Erro ao fazer login!");
-    });
-
-    client.on("disconnected", (reason) => {
-      console.log("O cliente foi desconectado:", reason);
-      client.initialize() // this what i was need
-    });
-
+  
     client.on("message", async message => {
       socket.emit("new_message", message._data.notifyName + ": " + message.body);
-    });
-
-    socket.on("close-client", () => {
-      client.destroy();
     });
   });
 
