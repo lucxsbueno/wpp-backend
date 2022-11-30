@@ -37,6 +37,8 @@ io.on("connection", (socket) => {
   socket.on("generate-session", data => {
     console.log("Localizando sessão: " + data.id);
 
+    socket.emit("loading", { start: true });
+
     socket.emit("message", "Localizando sessão: " + data.id);
 
     const client = new Client({
@@ -68,6 +70,8 @@ io.on("connection", (socket) => {
           socket.emit("qr", url);
 
           socket.emit("message", "Para prosseguir, por favor escaneie o QrCode!");
+
+          socket.emit("loading", { start: false });
         }
       });
     });
@@ -107,6 +111,8 @@ io.on("connection", (socket) => {
       socket.emit("chats", chats);
 
       socket.emit("message", "Chats carregados com sucesso!");
+
+      socket.emit("loading", { start: false });
     });
 
     client.on("authenticated", () => {
@@ -116,6 +122,8 @@ io.on("connection", (socket) => {
 
     client.on("loading_screen", () => {
       socket.emit("message", "Carregando...");
+
+      socket.emit("loading", { start: true });
     });
 
     client.on("auth_failure", () => {
