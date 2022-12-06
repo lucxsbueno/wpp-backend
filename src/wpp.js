@@ -37,7 +37,7 @@ io.on("connection", (socket) => {
   socket.on("generate-session", data => {
     console.log("Localizando sessão: " + data.id);
 
-    socket.emit("loading", { start: true });
+    socket.emit("loading", { start: true, loading: true });
 
     socket.emit("message", "Localizando sessão: " + data.id);
 
@@ -60,7 +60,7 @@ io.on("connection", (socket) => {
       }
     });
 
-    client.initialize();
+    client.initialize().catch(_=>_);
 
     client.on("qr", qr => {
       qrcode.toDataURL(qr, (err, url) => {
@@ -71,7 +71,7 @@ io.on("connection", (socket) => {
 
           socket.emit("message", "Para prosseguir, por favor escaneie o QrCode!");
 
-          socket.emit("loading", { start: false });
+          socket.emit("loading", { start: false, loading: true });
         }
       });
     });
@@ -98,6 +98,9 @@ io.on("connection", (socket) => {
           name: chat.name,
           avatar: await (await client.getContactById(chat.id._serialized)).getProfilePicUrl(),
           is_group: chat.isGroup,
+          pinned: chat.pinned,
+          archived: chat.archived,
+          unread_count: chat.unreadCount,
           last_message: {
             id: { ...id }.id,
             body: hasMedia ? "Enviou uma mídia." : body,
@@ -112,7 +115,7 @@ io.on("connection", (socket) => {
 
       socket.emit("message", "Chats carregados com sucesso!");
 
-      socket.emit("loading", { start: false });
+      socket.emit("loading", { start: false, loading: false });
     });
 
     client.on("authenticated", () => {
@@ -123,7 +126,7 @@ io.on("connection", (socket) => {
     client.on("loading_screen", () => {
       socket.emit("message", "Carregando...");
 
-      socket.emit("loading", { start: true });
+      socket.emit("loading", { start: true, loading: true });
     });
 
     client.on("auth_failure", () => {
